@@ -2,6 +2,28 @@
 
 Repository demonstrating a race condition in Docker's build/buildx system.
 
+## Update ✅
+
+This was reported at [docker/buildx#2067](https://github.com/docker/buildx/issues/2067), and workarounds were
+recommended. Essentially, it boils down to not using a cache mount to share data between different build phases. 
+`buildx` cannot know to synchronize steps between build stages without an explicit `COPY --from=builder`, so two 
+solutions exist.
+
+### Solution One: Use a Build Directory
+
+In this example, we explicitly put dependencies and application code into a build directory named `dist`, and copy these
+over using `COPY --from=builder`.
+
+See this pull request for the solution: [naftulikay/docker-buildx-race-condition#2](https://github.com/naftulikay/docker-buildx-race-condition/pull/2)
+
+### Solution Two: Use a Build Cookie
+
+This solution isn't recommended by the `buildx` engineers, but it might save a build step. We simply `touch .cookie` in
+the `npm install` step, and then before copying things from the cache, `COPY --from=builder` on the empty `.cookie` file
+to force synchronization.
+
+See this pull request for the solution: [naftulikay/docker-buildx-race-condition#1](https://github.com/naftulikay/docker-buildx-race-condition/pull/1)
+
 ## Background
 
 When trying to create a demonstration of using a shared build cache across multi-stage images, I encountered a very
