@@ -10,20 +10,19 @@ FROM node:18-alpine as builder
 ARG NODE_MODULE_CACHE_ID
 
 # create the workdir
-RUN install -d -m 0755 /usr/src/app
+RUN install -d -m 0755 /usr/src/app /usr/src/app/dist
 WORKDIR /usr/src/app
 
 # bring in dependencies
 COPY ./package.json ./package-lock.json ./
 
 # install dependencies into the cache
-RUN echo "*** cache id: ${NODE_MODULE_CACHE_ID}"
-RUN --mount=type=cache,sharing=locked,id=${NODE_MODULE_CACHE_ID},target=/usr/src/app/node_modules \
-    rm -fr node_modules/* && \
-    npm install
+RUN --mount=type=cache,id=${NODE_MODULE_CACHE_ID},target=/usr/src/app/node_modules \
+    npm install && \
+    cp -r node_modules ./dist/
 
 # copy source code files
-COPY ./index.js ./
+COPY ./index.js ./dist/
 
 # --- runtime stage
 FROM node:18-alpine
@@ -32,16 +31,14 @@ FROM node:18-alpine
 ARG NODE_MODULE_CACHE_ID
 
 # create the workdir
-RUN install -d -m 0755 /usr/src/app
+RUN install -d -m 0755 /usr/src/app /usr/src/app/node_modules
 WORKDIR /usr/src/app
 
-# copy dependencies from builder stage into this stage (runtime stage)
-# NOTE you absolutely do NOT want the `from` argument, it absolutely does not do what you think it does
-RUN echo "*** cache id: ${NODE_MODULE_CACHE_ID}"
-RUN --mount=type=cache,sharing=locked,id=${NODE_MODULE_CACHE_ID},target=/builder/node_modules cp -r /builder/node_modules ./
+# copy in dependencies from builder stage
+COPY --from=builder /usr/src/app/dist/node_modules/* /usr/src/app/node_modules/
 
 # copy source code from builder stage into this stage (runtime stage)
-COPY --from=builder /usr/src/app/index.js ./
+COPY --from=builder /usr/src/app/dist/index.js ./
 
 # sanity test
 COPY utils/sanity.sh ./
